@@ -1,0 +1,64 @@
+登录12306请求的URL是：https://kyfw.12306.cn/otn/login/init，可以使用Firbug抓取一下它的请求头，得到的response响应内容如下：
+
+从中可以看到Set-Cookie信息，也就是说，如果想要登录就必须先请求https://kyfw.12306.cn/otn/login/init这个链接，以获取服务端设置的Cookie信息，而有了该Cookie信息就可以将其保存，以备下步的请求使用。
+
+再来分析一下它的页面HTML与其对应处理登录的Javascript脚本文件（https://kyfw.12306.cn/otn/resources/merged/login_js.js），得到如下流程：
+
+1.用户点击登录提交时先要验证请求一下:https://kyfw.12306.cn/otn/login/loginAysnSuggest链接，用于判断当前网络环境是否可以登录,得到JSON数据(通过Firebug抓包)：
+
+[plain] view plaincopy在CODE上查看代码片派生到我的代码片
+
+    {  
+        "validateMessagesShowId":"_validatorMessage"  
+        "status":true  
+        "httpstatus":200,  
+        "data":{  
+            "loginCheck":"Y"  
+        },  
+        "messages":[],  
+        "validateMessages":{}  
+    }  
+
+这里通过判断data.loginCheck是否为字符串Y判断用户是否可以登录，如不能登录，则显示messages中的内容.
+
+2.当用户登录信息检查成功时，则POST请求https://kyfw.12306.cn/otn/login/userLogin，得到登录请求后的HTML，对应请求的参数为：
+
+[plain] view plaincopy在CODE上查看代码片派生到我的代码片
+
+    "loginUserDTO.user_name":  // 用户名  
+    "userDTO.password":        // 密码  
+    "randCode":                // 验证码  
+
+注：登录图片验证码的获取地址可以从登录页面的HTML中得到为：https://kyfw.12306.cn/otn/passcodeNew/getPassCodeNew?module=login&rand=sjrand
+
+3.通过解析获取的HTML可以根据id为login-txt的<span>标签来判断是否登录成功，登录成功的对应的HTML内容为：
+
+[html] view plaincopy在CODE上查看代码片派生到我的代码片
+
+    <span class="login-txt" style="color: #666666">  
+        <span>意见反馈:  
+             <a class="cursor colorA" href="mailto:12306yjfk@rails.com.cn">  
+                 12306yjfk@rails.com.cn  
+             </a>您好，  
+        </span>  
+        <a id="login_user" href="/otn/index/initMy12306"   
+           class="colorA" style="margin-left:-0.5px;"><span>登录成功用户名</span></a>|  
+        <a id="regist_out" href="/otn/login/loginOut">退出</a>  
+    </span>  
+
+失败的内容为：
+
+[html] view plaincopy在CODE上查看代码片派生到我的代码片
+
+    <span class="login-txt" style="color: #666666">  
+        <span>意见反馈:  
+             <a class="cursor colorA" href="mailto:12306yjfk@rails.com.cn">  
+                   12306yjfk@rails.com.cn  
+              </a>您好，请  
+        </span>  
+        <a id="login_user" href="/otn/login/init"  
+           class="colorA" style="margin-left:-0.5px;">登录</a> |  
+        <a id="regist_out" href="/otn/regist/init">注册</a>  
+    </span>  
+
+如上登录成功即可进行下一步的操作：对于车次的查询。

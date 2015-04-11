@@ -1,0 +1,135 @@
+在车票的预定提交之前必先要获取预定确认画面的原因是因为预订确认HTML中声明的orderRequestDTO与ticketInfoForPassengerForm两个Javascript变量，含有预订提交的时的必需参数信息，下面就预订提交给出粗略的流程分析图，如下：
+
+
+注：图片可以右击后查看大图，该流程对应的JS文件地址为：https://kyfw.12306.cn/otn/resources/merged/passengerInfo_js.js
+
+分析：如上图显示了车票预定提交的大体流程，可以依据请求的链接数将其分为四大块：
+
+1.检查用户选择的乘客信息的合法性，POST请求：https://kyfw.12306.cn/otn/confirmPassenger/checkOrderInfo，通过分析得到的JSON中的data.submitStatus属性是否为true判断，同时这一步的JSON信息中还会包含有一个data.isCheckOrderInfo属性将会作为下一步判断当前用户是否可排队请求的参数。对应请求参数有如下5个：
+
+[javascript] view plaincopy在CODE上查看代码片派生到我的代码片
+
+    cancel_flag: "2",                                         // 固定值  
+    bed_level_order_num: "000000000000000000000000000000",    // 固定值  
+    passengerTicketStr: getpassengerTickets(),                // 旅客信息字符串  
+    oldPassengerStr: getOldPassengers(),                      // 旅客信息字符串  
+    tour_flag: ticketInfoForPassengerForm.tour_flag,  // 从ticketInfoForPassengerForm中获取  
+    randCode: $("#randCode").val()                            // 前台输入验证码  
+
+这五个参数中，有两个参数需要注意passengerTicketStr与oldPassengersStr：
+
+passengerTicketStr是以下划线"_"分隔当每一个乘客信息组成的字符串，对应每个乘客信息字符串组成如下：
+[plain] view plaincopy在CODE上查看代码片派生到我的代码片
+
+    座位编号,0,票类型,乘客名,证件类型,证件号,手机号码,保存常用联系人(Y或N)  
+
+同样oldPassengersStr也是以下划线"_"分隔每个乘客信息组成的字符串，对应每个乘客信息字符串组成如下：
+
+[plain] view plaincopy在CODE上查看代码片派生到我的代码片
+
+    乘客名,证件类型,证件号,乘客类型  
+
+在上面的信息中座位编号指的是，一等座、二等座等的编码，从ticketInfoForPassengerForm.limitBuySeatTicketDTO.seat_type_codes属性中选择获取。
+
+票类型指的是，成人票，学生票等的编码，可以从ticketInfoForPassengerForm.limitBuySeatTicketDTO.ticket_type_codes属性中选择获取。
+
+证件类型指的是二代身份证，学生证，签证等的编码，可以从ticketInfoForPassengerForm.cardTypes属性中选择获取。
+
+最后oldPassengersStr中的乘客类型主要有如下信息：
+
+[javascript] view plaincopy在CODE上查看代码片派生到我的代码片
+
+    adult: "1",  
+    child: "2",  
+    student: "3",  
+    disability: "4"  
+
+取上面对应的数字编码。
+
+注意：在组合oldPassengersStr乘客信息字符串时，未尾会多一个下划线，提交请求是一定要补上，从上也可以看出所有的一些参数都是通过ticketInfoForPassengerForm变量获取的，这也是为什么要事先获取预定确认画面HTML的原因。
+
+
+2.检查乘合信息合法后，接下来就会结合返回的data.isCheckOrderInfo属性，POST请求：https://kyfw.12306.cn/otn/confirmPassenger/confirmSingleForQueue，判断当前乘客是否可以排队，对应的参数如下：
+
+[javascript] view plaincopy在CODE上查看代码片派生到我的代码片
+
+    train_date: new Date(orderRequestDTO.train_date.time).toString(),  // 列车日期  
+    train_no: orderRequestDTO.train_no,                                // 列车号  
+    stationTrainCode: orderRequestDTO.station_train_code,  
+    seatType: limit_tickets[0].seat_type,                            // 座位类型  
+    fromStationTelecode: orderRequestDTO.from_station_telecode,      // 发站编号  
+    toStationTelecode: orderRequestDTO.to_station_telecode,          // 到站编号  
+    leftTicket: ticketInfoForPassengerForm.queryLeftTicketRequestDTO.ypInfoDetail,  
+    purpose_codes: n,         // 默认取ADULT,表成人,学生表示为：0X00  
+    isCheckOrderInfo: m       // data.isCheckOrderInfo  
+
+这里的参数要注意传递列车日期的方式，及座位类型编码,这里选择的是第一个乘客的座位类型编码。最后还要确保orderRequestDTO变量的准确性。
+
+通过返回的JSON信息的data属性值来判断是否允许当前用户进行排队下单，并提示当前的剩余票数。
+
+其中的data属性会包含有两个重要的参数，countT与ticket,(ticket的格式为:1*****30314*****00001*****00003*****0000的形式)：
+
+countT表示的是排队人数，而ticket指的是当前列车对应座位的剩余票数，可以通过https://kyfw.12306.cn/otn/resources/merged/passengerInfo_js.js文件中的function L(l, m) 函数解析获取：
+
+[javascript] view plaincopy在CODE上查看代码片派生到我的代码片
+
+    function L(l, m) {  
+                rt = "";  
+                seat_1 = -1;  
+                seat_2 = -1;  
+                i = 0;  
+                while (i < l.length) {  
+                    s = l.substr(i, 10);  
+                    c_seat = s.substr(0, 1);  
+                    if (c_seat == m) {  
+                        count = s.substr(6, 4);  
+                        while (count.length > 1 && count.substr(0, 1) == "0") {  
+                            count = count.substr(1, count.length)  
+                        }  
+                        count = parseInt(count);  
+                        if (count < 3000) {  
+                            seat_1 = count  
+                        } else {  
+                            seat_2 = (count - 3000)  
+                        }  
+                    }  
+                    i = i + 10  
+                }  
+                if (seat_1 > -1) {  
+                    rt += seat_1  
+                }  
+                if (seat_2 > -1) {  
+                    rt += "," + seat_2  
+                }  
+                return rt  
+            }  
+
+函数中的l指的就是ticket，而m指的是第一位乘客所选择的座位编号。
+
+如果计算的余票信息还有剩余，则会提示用户点击确认按进行订单的提交请求，如果没有充实的票，则会提示用户选择其它车次，处理该请求的方法详情见https://kyfw.12306.cn/otn/resources/merged/passengerInfo_js.js文件中的function M(n, m) 方法。
+
+3.当提示的有充足的余票，且用户点击了确定按钮，则接下来会POST请求：https://kyfw.12306.cn/otn/confirmPassenger/confirmSingleForQueue，进行单程票(dc)类型的排队下单操作，通过判断返回的JSON信息data.submitStatus属性判断订单是否以成功提交至服务器，对应的请求参数为：
+
+[javascript] view plaincopy在CODE上查看代码片派生到我的代码片
+
+    passengerTicketStr: getpassengerTickets(),  
+    oldPassengerStr: getOldPassengers(),  
+    randCode: $("#randCode").val(),  
+    purpose_codes: ticketInfoForPassengerForm.purpose_codes,  
+    key_check_isChange: ticketInfoForPassengerForm.key_check_isChange,  
+    leftTicketStr: ticketInfoForPassengerForm.leftTicketStr,  
+    train_location: ticketInfoForPassengerForm.train_location  
+
+这里的参数没有新意，主要是注意获取ticketInfoForPassengerForm变量的准确性。
+
+
+4.订单提交至服务器后不一定说明订单已经成功了，还需要GET请求：https://kyfw.12306.cn/otn/confirmPassenger/queryOrderWaitTime，判断系统是否已根据提交的订单信息为相应的乘客占位成功，并提示预估出票等待时间，这一步只有一个参数，就是旅行类型，由于我们主要考虑的是单程票，故提交时POST dc就行了，如下：
+
+[javascript] view plaincopy在CODE上查看代码片派生到我的代码片
+
+    tourFlag: "dc"  
+
+这一步占位的操作在12306的官网中是将其封装在了一个名为OrderQueueWaitTime的对象中，可以解压https://kyfw.12306.cn/otn/resources/merged/passengerInfo_js.js文件获知，对应的如果判断系统占位成功，将会从返的JSON信息中获取data.orderId属性，即为下单成功时的订单号。
+
+
+如上4次请求就可以准确的模拟出12306官网订单提交的整套流程，其中其实还忽略了验证码的获取与判断操作，而这一步仅仅是判断验证码的合法性，与主体流程无关。对应订单确定页面的验证码获取链接为：https://kyfw.12306.cn/otn/passcodeNew/getPassCodeNew?module=passenger&rand=randp，从中与登录页面的验证码链接对比，可知新版12306的验证码管理统一为了一个方法，登录与订单确认的验证码链接只是传递的module和rand参数不一样而已。

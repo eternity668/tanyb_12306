@@ -1,0 +1,84 @@
+新版车次预订的查询（这里单指单程票查询）大大减化了请求参数，只接收出发地编码，到达地编码，出发日期与旅客编码四个参数，所有的过滤操作都扔给了前台Javascript，这也说明了车次查询流程的简单，只需请求一个链接地址：
+
+查询车次是通过GET：https://kyfw.12306.cn/otn/leftTicket/query链接获取的，对应的查询参数为（GET请求注意查询参数的顺序）：
+
+[plain] view plaincopy在CODE上查看代码片派生到我的代码片
+
+    leftTicketDTO.train_date=2014-01-23  // 出发日期  
+    leftTicketDTO.from_station=BJP       // 出发站编码  
+    leftTicketDTO.to_station=SHH         // 到达站编码  
+    purpose_codes=ADULT                  // 旅客编码：成人为ADULT,学生为:0X00  
+
+对应的获取的JSON信息格式如下：
+
+[plain] view plaincopy在CODE上查看代码片派生到我的代码片
+
+    {"validateMessagesShowId": "_validatorMessage",  
+        "status": true,  
+        "httpstatus": 200,  
+        "data": [  
+            {"queryLeftNewDTO": {  
+                    "train_no": "240000G14104",          // 列车编号  
+                    "station_train_code": "G141",        // 车次  
+                    "start_station_telecode": "VNP",     // 始发站编码  
+                    "start_station_name": "北京南",      // 始发站名  
+                    "end_station_telecode": "AOH",       // 终到站编码  
+                    "end_station_name": "上海虹桥",      // 终到站名  
+                    "from_station_telecode": "VNP",      // 查询输入经过站编码  
+                    "from_station_name": "北京南",       // 查询输入经过站名  
+                    "to_station_telecode": "AOH",        // 查询输入到站编码  
+                    "to_station_name": "上海虹桥",       // 查询输入到站名  
+                    "start_time": "14:16",               // 出发时间  
+                    "arrive_time": "19:47",              // 到站时间  
+                    "day_difference": "0",               // 花费天数  
+                    "train_class_name": "",  
+                    "lishi": "05:31",                    // 历时  
+                    "canWebBuy": "Y",                    // 是否可以预定  
+                    "lishiValue": "331",  
+                    "yp_info": "O055300094M0933000999174800017",  
+                    "control_train_day": "20301231",  
+                    "start_train_date": "20140123",  
+                    "seat_feature": "O3M393",  
+                    "yp_ex": "O0M090",  
+                    "train_seat_feature": "3",  
+                    "seat_types": "OM9",  
+                    "location_code": "P3",  
+                    "from_station_no": "01",  
+                    "to_station_no": "09",  
+                    "control_day": 19,  
+                    "sale_time": "1400",                // 出票时间点hhmm  
+                    "is_support_card": "1",  
+                    "gg_num": "--",  
+                    "gr_num": "--",          // 高级软卧座剩余数  
+                    "qt_num": "--",          // 其他座剩余数  
+                    "rw_num": "--",          // 软卧座剩余数  
+                    "rz_num": "--",          // 软座座剩余数  
+                    "tz_num": "--",          // 特等座剩余数  
+                    "wz_num": "--",          // 无座座剩余数  
+                    "yb_num": "--",  
+                    "yw_num": "--",          // 硬卧座剩余数  
+                    "yz_num": "--",          // 硬座座剩余数  
+                    "ze_num": "有",          // 二等座剩余数  
+                    "zy_num": "有",          // 一等座剩余数  
+                    "swz_num": "17"          // 商务座剩余数  
+                },  
+                "secretStr": "预定请求令牌字符串",  
+                "buttonTextInfo": "预订或开售日期"  
+            },  
+            ..........                       // 省略其它车次，信息同上  
+        ],  
+        "messages": [],  
+        "validateMessages": {}  
+    }  
+
+注意这里的canWebBuy属性，用于标记该趟列车是否可以预订，还有对应列车的secretStr字符，它用于请求预订确认页面的令牌，
+
+对于其中一直提到的列车站点编码，可以通过请求https://kyfw.12306.cn/otn/resources/js/framework/station_name.js链接，通过得到JS脚本中的station_names变量获取，对应的站点以@字符分隔，而每一个站点信息如下，这里以北京北为例：
+
+[plain] view plaincopy在CODE上查看代码片派生到我的代码片
+
+    bjb|北京北|VAP|beijingbei|bjb|0  
+
+用于提取其中有用的信息是：北京北与VAP，使用查询北京北的编码就是VAP，其它站点的解析同理。
+
+如上即可以查询指定出发地与到达地的车次预定信息，紧接着进行预订流程的分析。

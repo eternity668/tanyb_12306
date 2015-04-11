@@ -1,0 +1,11 @@
+在12306的解析中，就属车票预订的解析最为费神，也是最核心的一个流程，我现在只掌握了成人单程票的预订流程，其他的比如返程，学生票等都还没有分析出来，如下讲解的就是关于成人单程票的预定基本流程：
+3.1，获取预定确认页面
+
+车票预定首先要请求获取车票的预订确认页面，如下流程图所示：
+
+
+分析：该流程是在用户单击车次的“预订”按钮时触发的，如图所示，获取预订确认页面，先要判断用户是否登录，POST请求的地址是：https://kyfw.12306.cn/otn/login/checkUser，这个请求无参数，然后通过判断得到的JSON信息中的data.flag属性是否为true判断用户是否已登录，接着再根据对应列车查询时所获得的secretStr字符与用户输入的查询信息POST请求https://kyfw.12306.cn/otn/leftTicket/submitOrderRequest，判断用户是否可以访问预定确认画面，通过得到JSON信息的status属性判断是否允许访问，如果为true说明可以访问，最后依据旅行类型为单程（dc）POST跳转获取单程车票的预订确认画面：https://kyfw.12306.cn/otn/confirmPassenger/initDc。如果登录用户不进行上述判断，直接POST请求https://kyfw.12306.cn/otn/confirmPassenger/initDc提示非法请求，只有成功获取预订确认页面后才能进行下一步的操作。
+
+注：该流程可以查看对应JS脚本：https://kyfw.12306.cn/otn/resources/merged/queryLeftTicket_end_js.js,function L(b4, bX)方法获知。
+
+从请求订单的确认画面还可以得到获取当前登录用户常用联系人的链接地址为：https://kyfw.12306.cn/otn/confirmPassenger/getPassengerDTOs。
